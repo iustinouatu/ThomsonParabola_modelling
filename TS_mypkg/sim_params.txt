@@ -1,0 +1,23 @@
+## SIMULATION PARAMETERS FOR THOMSON PARABOLA CODE ##
+-----------------------------------------------------
+
+title = test_file
+no_of_regions = 1
+E = [1000000]
+B = [0.2]
+lengthss = [1.0]
+z_det = 1.3
+y_electrode_bottom = 0.04 
+yscal_maxvalues = 
+counter_chunks_of_inputs = 1
+names = [proton]
+nos_of_particles = [85]
+input_MeVs = [100]
+whats = [1]
+apsX = [False]
+apsY = [False]
+Rxs = [0.0]
+Rys = [0.0]
+tolers = [10e-5]
+velocity_options_for_what1 = [1]
+velocity_options_for_what2 = [0]

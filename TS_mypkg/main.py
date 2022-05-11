@@ -231,23 +231,27 @@ def main():
                                      each dictionary contains the x,y coordinates on the detector screen for the particles from that chunk.
     """
     if rank == 0:
-        no_of_regions = int(input("Please enter the number of regions with E/B field(s)"))
+        with open("sim_params.txt", "r") as file:
+            lines = f.readlines() # lines[0], lines[1], lines[2] do not carry information (params) for the simulation
+
+        title_of_graph = lines[3].split("=")[1]
+        no_of_regions = int(lines[4].split("=")[1])
         E, B, lengthss = np.zeros((no_of_regions, )), np.zeros((no_of_regions, )), np.zeros((no_of_regions, )) 
 
         for i in range(no_of_regions):
-            E[i] = float(input("Please enter the fields values for this region. \n" + "E = ? [V/m] \n"))
-            B[i] = float(input("B = ? [T] \n"))
-            lengthss[i] = float(input("Length of this region = ? [m] \n"))
+            E[i] = float(list(lines[5].split("=")[1])[i])
+            B[i] = float(list(lines[6].split("=")[1])[i])
+            lengthss[i] = float(list(lines[7].split("=")[1])[i])
 
         lengths = np.zeros((no_of_regions, ))
         for i in range(no_of_regions):
             lengths[i] = np.sum(lengthss[:i]) + lengthss[i]
 
-        z_det = float(input("Distance at which the screen is placed from the source (distance measured across z): ? [m] \n"))
-        y_electrode_bottom = float(input("Distance at which the bottom electrode is placed from the origin (distance measured along +y): ? [m] \n"))
-        yscal_maxvalues = np.array([10.0, 0.05, 1.5]) # max values for x, y, z of a particle during it's flight through the E and B fields
+        z_det = float(lines[8].split("=")[1])
+        y_electrode_bottom = float(lines[9].split("=")[1])
+        yscal_maxvalues = np.array(list(lines[10].split("=")[1])) # max values for x, y, z of a particle during it's flight through the E and B fields
 
-        counter_chunks_of_input = 0
+        counter_chunks_of_input = int(lines[11].split("=")[1])
         names, no_of_particles, input_MeV, whats, apsX, apsY =  [], [], [], [], [], []
         opt1_velosopts_container, opt2_velosopts_container, general_velosopts_container, tols = [], [], [], []
         contor_what_equal_2 = 0 # helpful not to ask for input from user multiple times if he already asked for option2 for at least 1 chunk.
