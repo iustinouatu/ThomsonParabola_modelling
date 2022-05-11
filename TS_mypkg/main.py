@@ -6,6 +6,7 @@ from matplotlib.pyplot import cm # facilitates an easy workflow to have a differ
 all_possible_names = databases.all_possible_names
 masses = databases.masses
 charges = databases.charges
+
 """
 # Geometry explanation: initial velocity of particles along z axis.
 # E and B fields parallel one to each other and oriented along positive y direction.
@@ -242,9 +243,9 @@ def main():
     contor_what_equal_2 = 0 # helpful not to ask for input from user multiple times if he already asked for option2 for at least 1 chunk.
     while (True):
         response = input("Do you want to create another chunk of particles? [Y/N] \n")
-        if (response == "Y" or response == "y"):
+        if (response == "Y" or response == "y" or response == "Yes"):
             counter_chunks_of_input += 1
-            name = input("Species Name? can only choose from (careful not to introduce typos!): [proton; C0+...6+; Xe0+...54+] \n")
+            name = input("Species Name? can only choose from (careful not to introduce typos!): [proton; C0+...6+; Xe0+...54+; Ar0+...54+] \n")
             condnames = True
             while (condnames):
                 if name in all_possible_names:
@@ -362,21 +363,18 @@ def main():
         coords_at_detector_forthischunk_all = []
 
         for j in range(len(list_of_dicts_containing_Species_Objs[k].keys())): # for each particle out of this chunk
-            clip_or_notexit = 0 #
+            clip_or_notexit = 0 # indicator for whether this current particle from this current chunk clipped on the electrode or not
 
             for r in range(no_of_regions): # for each E/B fields region
-                #print("We started 1 iteration of the loop indexed by r!")
                 parti_obj = list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)]
-                #print(parti_obj.x)
                 exited_B, hit_E, results_for_this_part = RKint.RK45integrator(parti_obj.x, parti_obj.y, parti_obj.z, 
                                                                               parti_obj.ux, parti_obj.uy, parti_obj.uz, 
                                                                               yscal_maxvalues, tols[k], 
                                                                               lengths[r], y_electrode_bottom, parti_obj._qonm, 
                                                                               E[r],  B[r])   
-                #print("We passed the RKint.RK45itnegrator instruction in this iteration of the loop indexed by r!")                                  
+                # print("We passed the RKint.RK45itnegrator instruction in this iteration of the loop indexed by r!")                                  
                 if (exited_B == 1 and hit_E == 0 ): 
                     print("success for this region")
-                    #print(results_for_this_part[0])
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].x = results_for_this_part[0]
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].y = results_for_this_part[1]
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].z = results_for_this_part[2]
@@ -390,7 +388,7 @@ def main():
                     if (exited_B == 0 and hit_E == 1):
                         print("it hit the electode and it didn't exit the B-field!")
                     clip_or_notexit = 1
-                    break # want go to next j, i.e. next iteration of the outer for-loop, i.e. to the next particle of this chunk of particles. this current particle is stuck.
+                    break # want go to next j, i.e. next iteration of the outer for-loop, i.e. to the next particle of this chunk of particles. this particle we just processed is stuck.
             
             if clip_or_notexit == 0: # ONLY think about the coordinates at screen IF the particle DIDN'T CLIP
                 coords_at_det = Species.Species.Species_push_from_endoffields_to_detector(results_for_this_part, z_det)
@@ -398,42 +396,35 @@ def main():
             if (j+1) % 100 == 0:
                 print("I finished processing {} particles out of a total of {} particles from this chunk.".format(j+1, len(list_of_dicts_containing_Species_Objs[k].keys())))
 
-        coords_at_detector_forthischunk_all = np.array(coords_at_detector_forthischunk_all) # will be shape (no_of_particles-bad_particles, 2), where no_of_particles is for this particular chunk of particles and bad_particles is again for this particular chunk (the ones which hit the bottom electrode or did not exit B-field)
+        coords_at_detector_forthischunk_all = np.array(coords_at_detector_forthischunk_all) # will be shape (no_of_particles - bad_particles, 2), where no_of_particles is for this particular chunk of particles and bad_particles is again for this particular chunk (the ones which hit the bottom electrode or did not exit B-field)
         final_coords_at_detectorscreen.append( {name_of_particles_from_chunk : coords_at_detector_forthischunk_all} ) # a list of dictionaries
         # Q: Why do you need final_coords_at_detectorscreen list to be populated? A: For plotting at end
         big_dict = {**big_dict, **{name_of_particles_from_chunk : coords_at_detector_forthischunk_all}}
         print("We finished processing chunk number {} out of a total of {} chunks of particles.".format(k+1, len(list_of_dicts_containing_Species_Objs)))
     
-    # xx = np.dstack(final_coords_at_detectorscreen_container) # shape (no_of_chunks, )
-    # xx = np.rollaxis(xx, -1) # shall be now shape ()
 
-    # saving results to a .npz file
+    # saving results to a .npz file and an additional .txt file which stores miscellanouses useful for postprocessing
     # ------------------------------
     np.savez_compressed('{}.npz'.format(title_of_graph), **big_dict)
-    list_of_keys= list(big_dict.keys())
+
+    list_of_keys = list(big_dict.keys()) # big_dict shall contain a number of keys as many chunks of particles you inputted 
     with open("{}.txt".format(title_of_graph), "w") as f:
-        f.write("{}.npz\n".format(title_of_graph))
-        # f.write("E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m , y_bottom_elec = {} m , Accuracy = {}\n".format(E, B, l_E, z_det, y_bottom_elec, tols))
-        for item in list_of_keys:
+        # need to save: 1) len(final_coords_at_detectorscreen); 2) names; 3) title_of_graph 
+        f.write("The following lines signify simulation details, in order: len(final_coords_at_detectorscreen); names [spanning len(final_coords_at_detectorscreen) lines]; title_of_graph; E; B; lengthss; z_det; y_electrode_bottom; tols.\n")
+        f.write("{}\n".format(len(final_coords_at_detectorscreen)))
+        for item in list_of_keys:    # here names are saved
             f.write("%s\n" % item)
+        f.write("{}.npz\n".format(title_of_graph))
+        # f.write("E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m , y_electrode_bottom = {} m , Accuracy = {}\n".format(E, B, l_E, z_det, y_electrode_bottom, tols))
+        f.write("{}\n".format(E))
+        f.write("{}\n".format(B))
+        f.write("{}\n".format(lengthss))
+        f.write("{}\n".format(z_det))
+        f.write("{}\n".format(y_electrode_bottom))
+        f.write("{}\n".format(tols))
     
     print("We start plotting now! Please wait ... ")
-
-    # plotting in the non-safe way, using the saved .npz file
-    # -------------------------------------------------------
     colors = iter(cm.rainbow(np.linspace(0,1, 2 * len(final_coords_at_detectorscreen)))) # if you have many chunks of particles (many species), this helps select 1 DIFFERENT color to represent each chunk. 
-    plt.figure()
-    res = np.load('{}.npz'.format(title_of_graph))
-    for key in names: # for each chunk
-        print(key)
-        c = next(colors)
-        c = np.reshape(c, (1, c.shape[0]) )
-        plt.scatter(res[key][:, 0], res[key][:, 1], s=0.2, label=key, c=c)
-    plt.xlabel("Deflection along x axis [meters]")
-    plt.ylabel("Deflection along y axis [meters]")
-    plt.title("This graph is plotted just to check that we indeed saved the right things in that .npz file. \n" + " This graph shall agree with the more elaborate one which doesn't contain the non_safe identifier in its name.")
-    plt.legend()
-    plt.savefig("{}_nonsafe.pdf".format(title_of_graph), bbox_inches='tight')
 
     # plotting in the safe way
     # -------------------------
@@ -446,15 +437,14 @@ def main():
             plt.scatter(value_from_that_key[:, 0], value_from_that_key[:, 1] , s=0.2, label=key, c=c) # key is a str
     if (whats[0] == 1):
         pass
-        #plt.title("Detector screen picture showing the captured ions. \n" + " Input energies in MeV = {} \n".format(input_MeV) + "Species = {} \n".format(names) + "Options chosen = {} ".format(whats) + "Sub-options chosen = {} \n".format(general_velosopts_container) + "Integration tolerances = {} \n".format(tols) + "E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m \n".format(E, B, l_E, z_det) + "Number of simulated particles = {}".format(no_of_particles))
+        # plt.title("Detector screen picture showing the captured ions. \n" + " Input energies in MeV = {} \n".format(input_MeV) + "Species = {} \n".format(names) + "Options chosen = {} ".format(whats) + "Sub-options chosen = {} \n".format(general_velosopts_container) + "Integration tolerances = {} \n".format(tols) + "E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m \n".format(E, B, l_E, z_det) + "Number of simulated particles = {}".format(no_of_particles))
     elif (whats[0] == 2):
         pass
-        #plt.title("Detector screen picture showing the captured ions. \n" + " Input energies in MeV = {} \n".format(input_MeV) + "Species = {} \n".format(names) + "Options chosen = {}".format(whats) + "Sub-options chosen = {} \n".format(general_velosopts_container)  + "Aperture size(s): Rx = {} m, Ry = {} m \n".format(Rx, Ry) + "Integration tolerances = {} \n".format(tols) + "E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m \n".format(E, B, l_E, z_det) + "Number of simulated particles = {}".format(no_of_particles))
+        # plt.title("Detector screen picture showing the captured ions. \n" + " Input energies in MeV = {} \n".format(input_MeV) + "Species = {} \n".format(names) + "Options chosen = {}".format(whats) + "Sub-options chosen = {} \n".format(general_velosopts_container)  + "Aperture size(s): Rx = {} m, Ry = {} m \n".format(Rx, Ry) + "Integration tolerances = {} \n".format(tols) + "E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m \n".format(E, B, l_E, z_det) + "Number of simulated particles = {}".format(no_of_particles))
     plt.xlabel("Deflection along x axis [meters]")
     plt.ylabel("Deflection along y axis [meters]")
     plt.legend()
     plt.savefig("{}.pdf".format(title_of_graph), bbox_inches='tight')
-
 
 
 if __name__ == '__main__':
