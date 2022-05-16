@@ -3,13 +3,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import cm # facilitates an easy workflow to have a different color for each curve on the plot at the end
 import sys
-inFile = sys.argv[1]
+inFile = sys.argv[1] # this script shall be thus launched (see MPI below) with $ mpirun -np <no_of_processes> python3 main.py <name_of_sim_params>
+
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nprocs = comm.Get_size()
-
 
 
 all_possible_names = databases.all_possible_names
@@ -357,7 +357,7 @@ def main():
             temp0 = data[-1][0]
             temp1 = data[-1][1]
             data = data[:-1] +  [(temp0, temp1-1)]
-            print("data is: {}".format(data))
+            # print("data is: {}".format(data))
         else:
             data = None
 
@@ -406,7 +406,7 @@ def main():
         coords_at_detector_forthischunk = comm.gather(coords_at_detector_forthischunk_forthisprocess, root=0)
         if rank == 0:
             print("Bla")
-            print(len(coords_at_detector_forthischunk)) # shall be equal to no of processes launched
+            print(len(coords_at_detector_forthischunk)) # shall be equal to no of processes launched, i.e. to nprocs
             print(coords_at_detector_forthischunk[0].shape) # shall be equal to how many particles 1 process received from the current chunk
 
         if rank == 0:

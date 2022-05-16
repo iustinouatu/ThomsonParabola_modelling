@@ -101,8 +101,8 @@ def get_RKF5_approx_efficiently(t, vec, dt, Ks, qonm, E, B):
     RKF5 = vec + dt * (  (16./135.)*Ks[0] + (6656./12825.)*Ks[2] + (28561./56430.)*Ks[3] - (9./50.)*Ks[4]  +(2./55.)*K6  )
     return RKF5 # RKF5 will contain 6 floats ''in it''
 
-#no_of_particles_which_haveexitB = 0
-#no_of_particles_which_havehitelectrode = 0
+# no_of_particles_which_haveexitB = 0
+# no_of_particles_which_havehitelectrode = 0
 def RK45integrator(x,y,z,ux,uy,uz,       yscal, tol,  
                   length_of_thisregion, y_bottom_elec, qonm, 
                    E,  B):

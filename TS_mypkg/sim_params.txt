@@ -3,16 +3,16 @@
 
 title = test_file
 no_of_regions = 2
-E = 1000000.0, 300.0
-B = 0.2, 0.1
-lengthss = 1.0, 1.1
+E = 1000000.0
+B = 0.2
+lengthss = 1.0
 z_det = 1.3
 y_electrode_bottom = 0.04 
 yscal_maxvalues = 10.0, 0.05, 1.5
-counter_chunks_of_inputs = 3
-names = proton, Xe54+, Xe53+
-nos_of_particles = 85, 82, 90
-input_MeVs = 100.0, 120.0, 130.0
+counter_chunks_of_inputs = 4
+names = Ar18+, Ar17+, Ar16+, Ar15+
+nos_of_particles = 100, 100, 100
+input_MeVs = 100.0, 100.0, 100.0
 whats = 1, 1, 1
 apsX = False, False, False
 apsY = False, False, False
