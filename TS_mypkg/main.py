@@ -2,7 +2,8 @@ import Species, Geometry, utility_fns, databases, RKint # why not from TS_mypkg 
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import cm # facilitates an easy workflow to have a different color for each curve on the plot at the end
-
+import sys
+inFile = sys.argv[1]
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -32,6 +33,16 @@ charges = databases.charges
 # Option 2 is suited to see the dispersion on screen due to the non-pointlike aperture (with a finite radius, Radius R != 0.0).
 # Option 2 allows to interacetively select an aperture which is non-pointlike only along X or only along Y, or along both directions (thus 3 different possibilities if option 2 is chosen)
 """
+
+def parsing_from_txt_to_Code(list_of_strings_with_whitespaces_whitelines, type_of_data):
+
+    for i in range(1, len(list_of_strings_with_whitespaces_whitelines)-1):
+        list_of_strings_with_whitespaces_whitelines[i] = type_of_data(list_of_strings_with_whitespaces_whitelines[i].lstrip())
+    a, b = [], []
+    a.append(type_of_data(list_of_strings_with_whitespaces_whitelines[0].lstrip()))
+    b.append(type_of_data(list_of_strings_with_whitespaces_whitelines[-1].rstrip().lstrip()))
+    final = a  +  list_of_strings_with_whitespaces_whitelines[1:-1]  +  b
+    return final
 
 def dictated_by_1(no_of_parts, input_MeVs, opt1_velosopt_value):
     """  Method to return initial conditions for a chunk of particles inputted using option 1.
@@ -208,7 +219,7 @@ def create_Species_Objects(name, mass, charge, r, velo, no_of_particles, dict_to
     return dict_to_put_in
 
 def main():
-    """ Function being called at the execution of the code via $ python3 main.py. From here the program starts running.
+    """ Function being called at the execution of the code via $ mpirun -np 8 python3 main.py. The program starts running from here.
 
     Inputs from user from keyboard:
     -------------------------------
@@ -231,130 +242,60 @@ def main():
                                      each dictionary contains the x,y coordinates on the detector screen for the particles from that chunk.
     """
     if rank == 0:
-        with open("sim_params.txt", "r") as file:
+        with open(inFile, "r") as f:
             lines = f.readlines() # lines[0], lines[1], lines[2] do not carry information (params) for the simulation
 
-        title_of_graph = lines[3].split("=")[1]
+        title_of_graph = lines[3].split("=")[1].lstrip().rstrip()
         no_of_regions = int(lines[4].split("=")[1])
-        E, B, lengthss = np.zeros((no_of_regions, )), np.zeros((no_of_regions, )), np.zeros((no_of_regions, )) 
 
-        for i in range(no_of_regions):
-            E[i] = float(list(lines[5].split("=")[1])[i])
-            B[i] = float(list(lines[6].split("=")[1])[i])
-            lengthss[i] = float(list(lines[7].split("=")[1])[i])
+        E_prelim = lines[5].split("=")[1].split(",")
+        E = np.array( parsing_from_txt_to_Code(E_prelim, float) ).reshape( (no_of_regions, ) )
+        B_prelim = lines[6].split("=")[1].split(",")
+        B = np.array( parsing_from_txt_to_Code(B_prelim, float) ).reshape( (no_of_regions, ) )
 
-        lengths = np.zeros((no_of_regions, ))
+        lengthss_prelim = lines[7].split("=")[1].split(",")
+        lengthss = np.array( parsing_from_txt_to_Code(lengthss_prelim, float) )
+        lengths = np.zeros( (no_of_regions, ) )
         for i in range(no_of_regions):
             lengths[i] = np.sum(lengthss[:i]) + lengthss[i]
 
         z_det = float(lines[8].split("=")[1])
         y_electrode_bottom = float(lines[9].split("=")[1])
-        yscal_maxvalues = np.array(list(lines[10].split("=")[1])) # max values for x, y, z of a particle during it's flight through the E and B fields
+        yscal_maxvalues_prelim = lines[10].split("=")[1].split(",") # max values for x, y, z of a particle during it's flight through the E and B fields
+        yscal_maxvalues = np.array(parsing_from_txt_to_Code(yscal_maxvalues_prelim, float)).reshape(3, )
 
         counter_chunks_of_input = int(lines[11].split("=")[1])
-        names, no_of_particles, input_MeV, whats, apsX, apsY =  [], [], [], [], [], []
-        opt1_velosopts_container, opt2_velosopts_container, general_velosopts_container, tols = [], [], [], []
-        contor_what_equal_2 = 0 # helpful not to ask for input from user multiple times if he already asked for option2 for at least 1 chunk.
-        while (True):
-            response = input("Do you want to create another chunk of particles? [Y/N] \n")
-            if (response == "Y" or response == "y" or response == "Yes"):
-                counter_chunks_of_input += 1
-                name = input("Species Name? can only choose from (careful not to introduce typos!): [proton; C0+...6+; Xe0+...54+; Ar0+...54+] \n")
-                condnames = True
-                while (condnames):
-                    if name in all_possible_names:
-                        print("You introduced a correct name of Species.")
-                        names.append(name)
-                        condnames = False
-                    else:
-                        print("Error: You introduced a wrong name of Species. ABORT")
-                        print("Try again. Please introduce a valid species name!")
-                        name = input("Species Name? can only choose from (careful not to introduce typos!): [proton; C0+...6+; Xe0+...54+] \n")
-            
-                number_of_particles = int(input("How many {}s ? \n".format(name)))
-                no_of_particles.append(number_of_particles)
-                input_energy = float(input("Initial KEnergy in MeV ? \n"))
-                input_MeV.append(input_energy)
-                toler = float(input("Tolerance (for integration purposes) for this chunk of particles? \n"))
-                tols.append(toler) # for each chunk of particles
-                what = int(input("What do you want to do with this chunk of particles? [1/2]" + "\n" + "1 means NO to APERTURE effects, 2 means YES \n"))
-                whats.append(what)
 
-                if (what == 2): # if you want to consider aperture effects for this chunk
-                    contor_what_equal_2 += 1
-                    aperture_nonpoint_alongX = input("Do you want the aperture to be NON-pointlike along X? [Y/N] \n")
-                    condX = True
-                    while (condX):
-                        if (aperture_nonpoint_alongX =='Y' or aperture_nonpoint_alongX =='y' or aperture_nonpoint_alongX =='Yes' or aperture_nonpoint_alongX =='YES'):
-                            aperture_nonpoint_alongX = True
-                            apsX.append(aperture_nonpoint_alongX)
-                            if (contor_what_equal_2 == 1): # only happens for the first chunk of particles which requests aperture effects
-                                Rx = float(input("Aperture radius R in meters for X-axis? [non-zero, positive value needed] \n"))
-                            condX = False
-                        elif (aperture_nonpoint_alongX =='N' or aperture_nonpoint_alongX =='n' or aperture_nonpoint_alongX =='No' or aperture_nonpoint_alongX =='NO'):
-                            aperture_nonpoint_alongX = False
-                            apsX.append(aperture_nonpoint_alongX)
-                            Rx = 0.0
-                            condX = False
-                        else:
-                            print("wrong answer for X-direction aperture type")
-                            aperture_nonpoint_alongX = input("Do you want the aperture to be NON-pointlike along X? [Y/N] \n")
+        names_prelim = lines[12].split("=")[1].split(",")
+        names = parsing_from_txt_to_Code(names_prelim, str)
 
-                    aperture_nonpoint_alongY = input("Do you want the aperture to be NON-pointlike along Y? [Y/N] \n")
-                    condY = True
-                    while(condY):
-                        if (aperture_nonpoint_alongY == 'Y' or aperture_nonpoint_alongY == 'y' or aperture_nonpoint_alongY == 'Yes' ): # only happens for the first chunk of particles which requests aperture effects
-                            aperture_nonpoint_alongY = True
-                            apsY.append(aperture_nonpoint_alongY)
-                            if (contor_what_equal_2 == 1): # only happens for 1st chunk of particles which request aperture effects, else Ry already set.
-                                Ry = float(input("Aperture radius R in meters for Y-axis? [non-zero, positive value needed] \n"))
-                            condY = False
-                        elif (aperture_nonpoint_alongY == 'N' or aperture_nonpoint_alongY == 'n'):
-                            aperture_nonpoint_alongY = False
-                            apsY.append(aperture_nonpoint_alongY)
-                            if (contor_what_equal_2 == 1):
-                                Ry = 0.0
-                            condY = False
-                        else:
-                            print("wrong answer for Y-direction aperture type")
-                            aperture_nonpoint_alongY = input("Do you want the aperture to be NON-pointlike along Y? [Y/N] \n")
-                    # for what = 2 , where do you want velocities to come from?
-                    opt2_velosopt = int(input("How do you want to deal with this chunks' incident particles' velocities? [1/2/3] \n"))
-                    condopt2velos = True
-                    while (condopt2velos):
-                        if (opt2_velosopt == 1 or opt2_velosopt == 2 or opt2_velosopt == 3):
-                            opt2_velosopts_container.append(opt2_velosopt)
-                            opt1_velosopts_container.append(0)
-                            general_velosopts_container.append(opt2_velosopt)
-                            condopt2velos = False
-                        else:
-                            print("Invalid response for velocities distribution behaviour. Try again. \n")
-                            opt2_velosopt = int(input("How do you want to deal with this chunks' incident particles' velocities? [1/2/3] \n"))
-                    
-                else: # what = 1, it seems you don't want aperture effects.
-                    Rx = 0.0
-                    Ry = 0.0
-                    apsX.append(False)
-                    apsY.append(False) 
-                    # for what = 1, where do you want the velocities to come from?
-                    opt1_velosopt = int(input("How do you want to deal with this chunks' incident particles' velocities? [1,2,3] ; 3 doesn't work at the moment \n"))
-                    condopt1velos = True
-                    while (condopt1velos):
-                        if (opt1_velosopt == 1 or opt1_velosopt == 2 or opt1_velosopt == 3):
-                            opt1_velosopts_container.append(opt1_velosopt)
-                            opt2_velosopts_container.append(0) # signifies that this chunk doesn't deal with option2 and any of its suboptions.
-                            general_velosopts_container.append(opt1_velosopt)
-                            condopt1velos = False # to allow exiting the while-loop
-                        else:
-                            print("Invalid response for velocities distribution behaviour. Try again. \n")
-                            opt1_velosopt = int(input("How do you want to deal with this chunks' incident particles' velocities? [1/2/3] ; 3 doesn't work at the moment \n"))
-            else:
-                if(response == "N" or response == "n"): # user doesn't want any other chunks of particles. break
-                    break # go out of the while-loop and continue executing instructions appearing after the while-loop.
-                else:
-                    print("invalid response! try again!")
-                    continue
-        title_of_graph = input("Please specify under which name you want to save results at detector screen. It will save a .npz file, a .txt file, and plot 2 graphs, all saved with the name you give, in the current directory. \n")
+        no_of_particles_prelim = lines[13].split("=")[1].split(",")
+        no_of_particles = parsing_from_txt_to_Code(no_of_particles_prelim, int)
+
+        input_MeV_prelim =  lines[14].split("=")[1].split(",")
+        input_MeV = parsing_from_txt_to_Code(input_MeV_prelim, float)
+
+        whats_prelim = lines[15].split("=")[1].split(",")
+        whats = parsing_from_txt_to_Code(whats_prelim, int)
+
+        apsX_prelim = lines[16].split("=")[1].split(",")
+        apsX = parsing_from_txt_to_Code(apsX_prelim, bool)
+        apsY_prelim = lines[17].split("=")[1].split(",")
+        apsY = parsing_from_txt_to_Code(apsY_prelim, bool)
+
+        Rx_prelim = lines[18].split("=")[1].split(",")
+        Rx = parsing_from_txt_to_Code(Rx_prelim, float)
+        Ry_prelim = lines[19].split("=")[1].split(",")
+        Ry = parsing_from_txt_to_Code(Ry_prelim, float)
+
+        tols_prelim = lines[20].split("=")[1].split(",")
+        tols = np.array(parsing_from_txt_to_Code(tols_prelim, float))
+
+        opt1_velosopts_container_prelim = lines[21].split("=")[1].split(",")
+        opt1_velosopts_container = parsing_from_txt_to_Code(opt1_velosopts_container_prelim, int)
+        opt2_velosopts_container_prelim = lines[22].split("=")[1].split(",")
+        opt2_velosopts_container = parsing_from_txt_to_Code(opt2_velosopts_container_prelim, int)
+
     else:
         counter_chunks_of_input, no_of_particles, input_MeV, whats, apsX, apsY, Rx, Ry, opt1_velosopts_container, opt2_velosopts_container, names, no_of_regions, yscal_maxvalues, tols, lengths, y_electrode_bottom, E, B, z_det = None,None,None,   None,None,None,  None,None,None,   None,None,None,  None,None,None,  None,None,None,  None
 
@@ -379,6 +320,8 @@ def main():
     B = comm.bcast(B, root=0)
     z_det = comm.bcast(z_det, root=0)
 
+    # print("I am process {} and I have counter_chunks_of_input equal to {}".format(rank, counter_chunks_of_input))
+
     # CREATE SPECIES OBJECTS on each process
     list_of_dicts_containing_Species_Objs = []
     for j in range(counter_chunks_of_input): # for each chunk of particles
@@ -402,16 +345,8 @@ def main():
         name_of_particles_from_chunk = list_of_dicts_containing_Species_Objs[k]['particle_1']._name[:-2] # why [:-2]?
         coords_at_detector_forthischunk_forthisprocess = []
 
-        # launch mpi processes here. one such process will work with total number of particles from this current chunk divided by the number of processes launched, with care about integer division etc. 
-        # each process, apart from the master one, needs as input data:
-        # 1) list_of_dicts_containing_Species_Objs[k]['particle_%d'%(particle_number)] for 100 different (but consecutive) particle_number's
-        # 2) yscal_maxvalues
-        # 3) tols[k]
-        # 4) lengths
-        # 5) y_electrode_bottom
-        # 6) E
-        # 7) B       
         nsteps = len( list_of_dicts_containing_Species_Objs[k].keys() )
+
         if rank == 0:
             ave, res = divmod(nsteps, nprocs)
             counts = [ave+1 if p < res else ave for p in range(nprocs)] 
@@ -422,14 +357,14 @@ def main():
             temp0 = data[-1][0]
             temp1 = data[-1][1]
             data = data[:-1] +  [(temp0, temp1-1)]
-            print("data is:")
-            print(data)
+            print("data is: {}".format(data))
         else:
             data = None
 
         data = comm.scatter(data, root=0)
-        print("I am process {} and I received data {}".format(rank, data))
+        print("I am process {} and I received data {} for the chunk {} out of a total of {} chunks.".format(rank, data, k+1, len(list_of_dicts_containing_Species_Objs)))
         dataa = [ i for i in range(data[0], data[1]+1) ]
+        print("I am process {} and I received dataa {} for the chunk {} out of a total of {} chunks.".format(rank, dataa, k+1, len(list_of_dicts_containing_Species_Objs)))
 
         for j in dataa: # for each particle this process received
             clip_or_notexit = 0 # indicator for whether this current particle from this current chunk clipped on the electrode or not
@@ -443,7 +378,7 @@ def main():
                                                                             E[r],  B[r])   
                 # print("We passed the RKint.RK45itnegrator instruction in this iteration of the loop indexed by r!")                                  
                 if (exited_B == 1 and hit_E == 0 ): 
-                    print("success for this region")
+                    print("I am process rank {} and I succeeded in this region {} out of {} total regions for particle {} out of a total of {} particles in this chunk {} out of a total of {} chunks.".format(rank, r+1, no_of_regions, j+1-dataa[0], len(dataa) , k+1, len(list_of_dicts_containing_Species_Objs)) )
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].x = results_for_this_part[0]
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].y = results_for_this_part[1]
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].z = results_for_this_part[2]
@@ -451,11 +386,11 @@ def main():
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].uy = results_for_this_part[4]
                     list_of_dicts_containing_Species_Objs[k]['particle_%d'%(j+1)].uz = results_for_this_part[5]
                 elif (exited_B == 0 or hit_E == 1): # failure for this region
-                    print("either it didn't exit the B-field region or it hit the bottom electrode")
+                    print("I am process rank {} and I report that in this region {} out of {} total regions for particle {} out of a total of {} particles in this chunk {} out of a total of {} chunks the particle failed.".format(rank, r+1, no_of_regions, j+1-dataa[0], len(dataa) , k+1, len(list_of_dicts_containing_Species_Objs)  ))
                     if (hit_E == 1):
-                        print("it hit the electrode!")
+                        print("I am process rank {} and I report that in this region {} out of {} total regions for particle {} out of a total of {} particles in this chunk {} out of a total of {} chunks the particle HIT THE ELECTRODE.".format(rank, r+1, no_of_regions, j+1-dataa[0], len(dataa) , k+1, len(list_of_dicts_containing_Species_Objs)  ))
                     if (exited_B == 0 and hit_E == 1):
-                        print("it hit the electode and it didn't exit the B-field!")
+                        print("I am process rank {} and I report that in this region {} out of {} total regions for particle {} out of a total of {} particles in this chunk {} out of a total of {} chunks the particle HIT THE ELECTRODE and DID NOT EXIT THE B-field.".format(rank, r+1, no_of_regions, j+1-dataa[0], len(dataa) , k+1, len(list_of_dicts_containing_Species_Objs)  ))
                     clip_or_notexit = 1
                     break # want go to next j, i.e. next iteration of the outer for-loop, i.e. to the next particle of this chunk of particles. this particle we just processed is stuck.
             
@@ -463,38 +398,39 @@ def main():
                 coords_at_det = Species.Species.Species_push_from_endoffields_to_detector(results_for_this_part, z_det) # free flight in air
                 coords_at_detector_forthischunk_forthisprocess.append(coords_at_det) # coords_at_det is a numpy array of shape (2,), thus the x-y position for 1 particle from this current chunk
             if (j+1) % 100 == 0:
-                print("I finished processing {} particles out of a total of {} particles from this chunk on process rank {} out of a total of {} processes.".format(j+1, len(data), rank, nprocs))
+                print("I finished processing {} particles out of a total of {} particles from this chunk {} out of a total of {} chunks on process rank {} out of a total of {} processes.".format(j+1-dataa[0], len(dataa), k+1, len(list_of_dicts_containing_Species_Objs), rank, nprocs))
 
-    coords_at_detector_forthischunk_forthisprocess = np.array(coords_at_detector_forthischunk_forthisprocess) # will be shape (no_of_particles - bad_particles, 2), where no_of_particles is for this particular chunk of particles and bad_particles is again for this particular chunk (the ones which hit the bottom electrode or did not exit B-field)
-    # END of computation for this process
-    # need to gather now the results from all the processes onto the root one:
-    coords_at_detector_forthischunk = comm.gather(coords_at_detector_forthischunk_forthisprocess, root=0)
-    if rank == 0:
-        print("Bla")
-        print(len(coords_at_detector_forthischunk))
-        print(coords_at_detector_forthischunk[0].shape)
+        coords_at_detector_forthischunk_forthisprocess = np.array(coords_at_detector_forthischunk_forthisprocess) # will be shape (no_of_particles - bad_particles, 2), where no_of_particles is for this particular chunk of particles and bad_particles is again for this particular chunk (the ones which hit the bottom electrode or did not exit B-field)
+        # END of computation for this process
+        # need to gather now the results from all the processes onto the root one, for this chunk:
+        coords_at_detector_forthischunk = comm.gather(coords_at_detector_forthischunk_forthisprocess, root=0)
+        if rank == 0:
+            print("Bla")
+            print(len(coords_at_detector_forthischunk)) # shall be equal to no of processes launched
+            print(coords_at_detector_forthischunk[0].shape) # shall be equal to how many particles 1 process received from the current chunk
 
-    if rank == 0:
-        final_coords_at_detectorscreen.append( {name_of_particles_from_chunk : coords_at_detector_forthischunk} ) # a list of dictionaries
-        # Q: Why do you need final_coords_at_detectorscreen list to be populated? A: For plotting at end
-        big_dict = {**big_dict, **{name_of_particles_from_chunk : coords_at_detector_forthischunk}}
-        print("We finished processing chunk number {} out of a total of {} chunks of particles.".format(k+1, len(list_of_dicts_containing_Species_Objs)))
+        if rank == 0:
+            final_coords_at_detectorscreen.append( {name_of_particles_from_chunk : coords_at_detector_forthischunk} ) # a list of dictionaries
+            # Q: Why do you need final_coords_at_detectorscreen list to be populated? A: For plotting at end
+            big_dict = {**big_dict, **{name_of_particles_from_chunk : coords_at_detector_forthischunk}}
+            print("I am process {} and we finished processing chunk number {} out of a total of {} chunks of particles.".format(rank, k+1, len(list_of_dicts_containing_Species_Objs)))
     
 
     # saving results to a .npz file and an additional .txt file which stores miscellanouses useful for postprocessing
     # ------------------------------
     if rank == 0:
+        print("I am process {} and I now started saving the results ...".format(rank))
         np.savez_compressed('{}.npz'.format(title_of_graph), **big_dict)
 
         list_of_keys = list(big_dict.keys()) # big_dict shall contain a number of keys as many chunks of particles you inputted 
         with open("{}.txt".format(title_of_graph), "w") as f:
-            # need to save: 1) len(final_coords_at_detectorscreen); 2) names; 3) title_of_graph 
+            # need to save: 1) len(final_coords_at_detectorscreen); 2) names; 3) title_of_graph; 4) E; 5) B; 6) lengthss; 7) z_det; 8) y_electrode_bottom; 9) tols
             f.write("The following lines signify simulation details, in order: len(final_coords_at_detectorscreen); names [spanning len(final_coords_at_detectorscreen) lines]; title_of_graph; E; B; lengthss; z_det; y_electrode_bottom; tols.\n")
             f.write("{}\n".format(len(final_coords_at_detectorscreen)))
             for item in list_of_keys:    # here names are saved
-                f.write("%s\n" % item)
+                f.write("{}, ".format(item))
+            f.write("\n")
             f.write("{}.npz\n".format(title_of_graph))
-            # f.write("E = {} V/m , B = {} T , l_E = l_B = {} m , z_det = {} m , y_electrode_bottom = {} m , Accuracy = {}\n".format(E, B, l_E, z_det, y_electrode_bottom, tols))
             f.write("{}\n".format(E))
             f.write("{}\n".format(B))
             f.write("{}\n".format(lengthss))
@@ -502,7 +438,7 @@ def main():
             f.write("{}\n".format(y_electrode_bottom))
             f.write("{}\n".format(tols))
         
-        print("We start plotting now! Please wait ... ")
+        print("I am process {} and we started plotting now! Please wait ... ".format(rank))
         colors = iter(cm.rainbow(np.linspace(0,1, 2 * len(final_coords_at_detectorscreen)))) # if you have many chunks of particles (many species), this helps select 1 DIFFERENT color to represent each chunk. 
 
         # plotting in the safe way
