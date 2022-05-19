@@ -218,6 +218,36 @@ def create_Species_Objects(name, mass, charge, r, velo, no_of_particles, dict_to
         dict_to_put_in['particle_%d' %(i+1)] = Species.Species("{}_{}".format(name, (i+1)), mass, charge, coords, [0.0, 0.0, velo[i]])
     return dict_to_put_in
 
+def read_sim_params_from_file(inputFile):
+    with open(inputFile, "r") as f:
+        lines = f.readlines() # lines[0], lines[1], lines[2] do not carry information (params) for the simulation
+        title_of_graph = lines[3].split("=")[1].lstrip().rstrip()
+        no_of_regions = int(lines[4].split("=")[1])
+
+        E_prelim = lines[5].split("=")[1].split(",")
+        B_prelim = lines[6].split("=")[1].split(",")
+        lengthss_prelim = lines[7].split("=")[1].split(",")
+        z_det = float(lines[8].split("=")[1])
+        y_electrode_bottom = float(lines[9].split("=")[1])
+        yscal_maxvalues_prelim = lines[10].split("=")[1].split(",") # max values for x, y, z of a particle during it's flight through the E and B fields
+        counter_chunks_of_input = int(lines[11].split("=")[1])
+
+        names_prelim = lines[12].split("=")[1].split(",")
+        no_of_particles_prelim = lines[13].split("=")[1].split(",")
+        input_MeV_prelim =  lines[14].split("=")[1].split(",")
+        whats_prelim = lines[15].split("=")[1].split(",")
+        apsX_prelim = lines[16].split("=")[1].split(",")
+        apsY_prelim = lines[17].split("=")[1].split(",")
+        Rx_prelim = lines[18].split("=")[1].split(",")
+        Ry_prelim = lines[19].split("=")[1].split(",")
+        tols_prelim = lines[20].split("=")[1].split(",")
+        opt1_velosopts_container_prelim = lines[21].split("=")[1].split(",")
+        opt2_velosopts_container_prelim = lines[22].split("=")[1].split(",")
+
+        return title_of_graph, no_of_regions, E_prelim, B_prelim, lengthss_prelim, z_det, y_electrode_bottom, yscal_maxvalues_prelim, counter_chunks_of_input, names_prelim, no_of_particles_prelim, \
+               input_MeV_prelim, whats_prelim, apsX_prelim, apsY_prelim, Rx_prelim, Ry_prelim, tols_prelim, opt1_velosopts_container_prelim, opt2_velosopts_container_prelim
+
+
 def main():
     """ Function being called at the execution of the code via $ mpirun -np 8 python3 main.py. The program starts running from here.
 
@@ -242,62 +272,43 @@ def main():
                                      each dictionary contains the x,y coordinates on the detector screen for the particles from that chunk.
     """
     if rank == 0:
-        with open(inFile, "r") as f:
-            lines = f.readlines() # lines[0], lines[1], lines[2] do not carry information (params) for the simulation
+        title_of_graph, no_of_regions, E_prelim, B_prelim, lengthss_prelim, z_det, y_electrode_bottom, yscal_maxvalues_prelim, \
+        counter_chunks_of_input, names_prelim, no_of_particles_prelim, input_MeV_prelim, \
+        whats_prelim, apsX_prelim, apsY_prelim, Rx_prelim, Ry_prelim, \
+        tols_prelim, opt1_velosopts_container_prelim, opt2_velosopts_container_prelim = \
+                        read_sim_params_from_file(inFile)
 
-        title_of_graph = lines[3].split("=")[1].lstrip().rstrip()
-        no_of_regions = int(lines[4].split("=")[1])
-
-        E_prelim = lines[5].split("=")[1].split(",")
         E = np.array( parsing_from_txt_to_Code(E_prelim, float) ).reshape( (no_of_regions, ) )
-        B_prelim = lines[6].split("=")[1].split(",")
         B = np.array( parsing_from_txt_to_Code(B_prelim, float) ).reshape( (no_of_regions, ) )
 
-        lengthss_prelim = lines[7].split("=")[1].split(",")
         lengthss = np.array( parsing_from_txt_to_Code(lengthss_prelim, float) )
         lengths = np.zeros( (no_of_regions, ) )
         for i in range(no_of_regions):
             lengths[i] = np.sum(lengthss[:i]) + lengthss[i]
 
-        z_det = float(lines[8].split("=")[1])
-        y_electrode_bottom = float(lines[9].split("=")[1])
-        yscal_maxvalues_prelim = lines[10].split("=")[1].split(",") # max values for x, y, z of a particle during it's flight through the E and B fields
         yscal_maxvalues = np.array(parsing_from_txt_to_Code(yscal_maxvalues_prelim, float)).reshape(3, )
 
-        counter_chunks_of_input = int(lines[11].split("=")[1])
-
-        names_prelim = lines[12].split("=")[1].split(",")
         names = parsing_from_txt_to_Code(names_prelim, str)
 
-        no_of_particles_prelim = lines[13].split("=")[1].split(",")
         no_of_particles = parsing_from_txt_to_Code(no_of_particles_prelim, int)
 
-        input_MeV_prelim =  lines[14].split("=")[1].split(",")
         input_MeV = parsing_from_txt_to_Code(input_MeV_prelim, float)
 
-        whats_prelim = lines[15].split("=")[1].split(",")
         whats = parsing_from_txt_to_Code(whats_prelim, int)
 
-        apsX_prelim = lines[16].split("=")[1].split(",")
         apsX = parsing_from_txt_to_Code(apsX_prelim, bool)
-        apsY_prelim = lines[17].split("=")[1].split(",")
         apsY = parsing_from_txt_to_Code(apsY_prelim, bool)
-
-        Rx_prelim = lines[18].split("=")[1].split(",")
         Rx = parsing_from_txt_to_Code(Rx_prelim, float)
-        Ry_prelim = lines[19].split("=")[1].split(",")
         Ry = parsing_from_txt_to_Code(Ry_prelim, float)
 
-        tols_prelim = lines[20].split("=")[1].split(",")
         tols = np.array(parsing_from_txt_to_Code(tols_prelim, float))
 
-        opt1_velosopts_container_prelim = lines[21].split("=")[1].split(",")
         opt1_velosopts_container = parsing_from_txt_to_Code(opt1_velosopts_container_prelim, int)
-        opt2_velosopts_container_prelim = lines[22].split("=")[1].split(",")
         opt2_velosopts_container = parsing_from_txt_to_Code(opt2_velosopts_container_prelim, int)
 
     else:
-        counter_chunks_of_input, no_of_particles, input_MeV, whats, apsX, apsY, Rx, Ry, opt1_velosopts_container, opt2_velosopts_container, names, no_of_regions, yscal_maxvalues, tols, lengths, y_electrode_bottom, E, B, z_det = None,None,None,   None,None,None,  None,None,None,   None,None,None,  None,None,None,  None,None,None,  None
+        counter_chunks_of_input, no_of_particles, input_MeV, whats, apsX, apsY, Rx, Ry, opt1_velosopts_container, opt2_velosopts_container, \
+        names, no_of_regions, yscal_maxvalues, tols, lengths, y_electrode_bottom, E, B, z_det = None,None,None,   None,None,None,  None,None,None,   None,None,None,  None,None,None,  None,None,None,  None
 
     # retrieve the user inputted simulation params to all the processes
     counter_chunks_of_input = comm.bcast(counter_chunks_of_input, root=0)
@@ -320,13 +331,12 @@ def main():
     B = comm.bcast(B, root=0)
     z_det = comm.bcast(z_det, root=0)
 
-    # print("I am process {} and I have counter_chunks_of_input equal to {}".format(rank, counter_chunks_of_input))
 
     # CREATE SPECIES OBJECTS on each process
     list_of_dicts_containing_Species_Objs = []
     for j in range(counter_chunks_of_input): # for each chunk of particles
         initial_coords, initial_uzs = get_particles_init_conds(no_of_particles[j], input_MeV[j], 
-                                                            whats[j], apsX[j], apsY[j], Rx, Ry, 
+                                                            whats[j], apsX[j], apsY[j], Rx[j], Ry[j], 
                                                             opt1_velosopts_container[j], opt2_velosopts_container[j]) 
         # initial_uzs is a np.array shape (no_of_particles, ). it can be populated with same float, OR with floats extracted from a Gaussian. This depends on which sub-option you chose.
         Species_Objs_dict = dict() # for this current chunk of particles
@@ -357,7 +367,7 @@ def main():
             temp0 = data[-1][0]
             temp1 = data[-1][1]
             data = data[:-1] +  [(temp0, temp1-1)]
-            # print("data is: {}".format(data))
+            # print("data is: {}".format(data)) # shall work
         else:
             data = None
 
