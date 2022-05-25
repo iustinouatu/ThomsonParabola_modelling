@@ -135,6 +135,6 @@ The code has been tested on **Python 3.8.5** with the following dependencies:
 
 * scipy 1.6.2
 
-The code is run via: `$ cd /dir/in/which/code_is_extracted` followed by: `$ mpirun -np <no_of_cores> python3 main.py` for the branch "mpi4py_withoutNumba_fileinput"
+The code is run via: `$ cd /dir/in/which/code_is_extracted` followed by: `$ mpirun -np <no_of_cores> python3 main.py sim_params.txt` for the branch "mpi4py_withoutNumba_fileinput"
 
 Or via `$ python3 main.py` if the non-parallelized version from the "main" branch is used.
